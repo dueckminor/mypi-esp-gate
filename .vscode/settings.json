@@ -1,0 +1,12 @@
+{
+    "terminal.integrated.env.osx": {
+        "PATH": "/Users/d055979/.platformio/penv/bin:/Users/d055979/.platformio/penv:/Users/d055979/unix.env/ant/bin:/Users/d055979/unix.env/ext/bin:/Users/d055979/bin:/Users/d055979/unix.env/bin:/Library/Java/JavaVirtualMachines/jdk1.8.0_162.jdk/Contents/Home/bin:/bin:/usr/local/bin:/Users/d055979/go/bin:/usr/local/go/bin:/usr/bin:/usr/sbin:/usr/local/bin:/sbin:/usr/sbin",
+        "PLATFORMIO_CALLER": "vscode"
+    },
+    "cSpell.words": [
+        "mqtt",
+        "paho",
+        "mypi",
+        "ssid",
+    ]
+}
