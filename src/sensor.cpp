@@ -6,7 +6,7 @@
 void sensorAnalyseBits(char input)
 {
     static char lastInput=0xff;
-    static DoorPosition position = DoorPosition_Undefined;
+    static GatePosition position = GatePosition_Undefined;
 
     if (input == lastInput)
     {
@@ -14,7 +14,7 @@ void sensorAnalyseBits(char input)
         return;
     }
 
-    DoorPosition positionCandidate = DoorPosition(((~input) >> 1) & 7);
+    GatePosition positionCandidate = GatePosition(((~input) >> 1) & 7);
     bool bOpenDirection = ! ((input >> 0) & 1);
     bool bCloseDirection = ! ((input >> 4) & 1);
 
@@ -24,7 +24,7 @@ void sensorAnalyseBits(char input)
       position = positionCandidate;
     }
 
-    DoorAnalyseInput(position,bOpenDirection,bCloseDirection);
+    GateAnalyseInput(position,bOpenDirection,bCloseDirection);
 }
 
 void SensorAnalyseInput(char input)

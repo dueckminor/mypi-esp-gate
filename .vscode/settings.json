@@ -8,5 +8,6 @@
         "paho",
         "mypi",
         "ssid",
+        "wifi",
     ]
 }

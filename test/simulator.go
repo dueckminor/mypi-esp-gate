@@ -14,8 +14,9 @@ var relais = false
 
 func mqttHandler(client mqtt.Client, msg mqtt.Message) {
 	fmt.Println("[MQTT] Received Message", msg.Topic(), string(msg.Payload()))
-	if msg.Topic() == "tor2/relais" {
-		relais = string(msg.Payload()) == "1"
+	if msg.Topic() == "tor2/debug/relais" {
+		payload := string(msg.Payload())
+		relais = payload == "1"
 	}
 }
 
@@ -72,6 +73,7 @@ func main() {
 	}
 
 	mqttClient.Subscribe("tor2/relais", 2, mqttHandler)
+	mqttClient.Subscribe("tor2/debug/relais", 2, mqttHandler)
 
 	go func() {
 		sensorBitTable := createSensorBitTable()

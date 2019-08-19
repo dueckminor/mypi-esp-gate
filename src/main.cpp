@@ -12,6 +12,10 @@ void setup() {
   HardwareInitialize();
   WifiInitialize();
   MqttInitialize();
+
+  String msg = String((int)(sizeof(unsigned long)), DEC);
+  MqttPublish(MYPI_TOR_ID "/debug/sizeof_unsigned_long", msg.c_str());
+
 }
 
 int loopcount = 0;
@@ -25,9 +29,7 @@ static void MqttSendStatistics() {
       return;
     }
 
-    String msg = String(loopcount, DEC);
-    MqttPublish(MYPI_TOR_ID "/loop/count", msg.c_str());
-    msg = String((int)(thisTime-lastTime), DEC);
+    String msg = String((int)(thisTime-lastTime), DEC);
     MqttPublish(MYPI_TOR_ID "/loop/time", msg.c_str());
     if (dbgMsg != "") {
       MqttPublish(MYPI_TOR_ID "/debug", dbgMsg.c_str());
@@ -37,17 +39,21 @@ static void MqttSendStatistics() {
 }
 
 void loop() {
+  // Toggle the hardware LED (the blue on an ESP-01) every 1000 loops
+  // a constantly flashing LED indicates a good network connection
+  // (the faster the better)
+  if (0==(loopcount%1000)) {
+    HardwareLED((loopcount/1000)&1);
+  }
+  loopcount++;
+
   MqttBeginLoop();
 
   ActorLoop();
   SensorAnalyseInput(HardwareRead());
 
-  if (0==(loopcount%1000)) {
-    HardwareLED((loopcount/1000)&1);
-  }
+  GateLoopHandler();
 
   MqttEnsureConnected();
   MqttSendStatistics();
-
-  loopcount++;
 }

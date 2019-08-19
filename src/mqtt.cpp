@@ -33,15 +33,15 @@ static void mqttCallback(char* topic, byte* payload, unsigned int length) {
   else if (0 == strcmp(topic, MYPI_TOR_ID "/relais")) {
     if ((char)payload[0] == '1') {
       ActorRelaisOn();
-    } else {
-      ActorRelaisOn();
+    } else if ((char)payload[0] == '0') {
+      ActorRelaisOff();
     }
   }
   else if (0 == strcmp(topic, MYPI_TOR_ID "/open")) {
-    DoorRequestPosition(DoorPosition_Open);
+    GateRequestPosition(GatePosition_Open);
   }
   else if (0 == strcmp(topic, MYPI_TOR_ID "/close")) {
-    DoorRequestPosition(DoorPosition_Closed); 
+    GateRequestPosition(GatePosition_Closed); 
   }
 }
 
@@ -67,6 +67,8 @@ void mqttReconnect() {
       // ... and resubscribe
       mqttClient.subscribe(MYPI_TOR_ID "/relais");
       mqttClient.subscribe(MYPI_TOR_ID "/debug/#");
+      mqttClient.subscribe(MYPI_TOR_ID "/open");
+      mqttClient.subscribe(MYPI_TOR_ID "/close");
     } else {
       // Wait 5 seconds before retrying
       delay(5000);
