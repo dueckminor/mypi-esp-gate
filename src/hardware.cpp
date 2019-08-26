@@ -4,15 +4,9 @@
 #include "settings.h"
 
 const char IC_8574 = 32;
-char IC_8574_OUTPUT = 31;
+char IC_8574_OUTPUT = 0x80 + 0x1f;
 
 #define LED_ON_BOARD 1 // ESP-01
-
-void ic8574Write() {
-    Wire.beginTransmission(IC_8574);
-    Wire.write(~IC_8574_OUTPUT);
-    Wire.endTransmission();
-}
 
 void HardwareInitialize()
 {
@@ -24,8 +18,13 @@ void HardwareInitialize()
 
     Wire.begin(2,0);
     Wire.setClock(400000L);
+    
+    // Wire.beginTransmission(IC_8574);
+    // Wire.write(IC_8574_OUTPUT);
+    // Wire.endTransmission();
+
     Wire.beginTransmission(IC_8574);
-    Wire.write(~IC_8574_OUTPUT);
+    Wire.write(IC_8574_OUTPUT);
     Wire.endTransmission();
 }
 
@@ -33,19 +32,27 @@ void HardwareWrite(bool bOn)
 {
     if (bOn)
     {
-        bitSet(IC_8574_OUTPUT,7);
+        bitClear(IC_8574_OUTPUT,7);
     }
     else
     {
-        bitClear(IC_8574_OUTPUT,7);
+        bitSet(IC_8574_OUTPUT,7);
     }
-    ic8574Write();
+    
+    Wire.beginTransmission(IC_8574);
+    Wire.write(IC_8574_OUTPUT);
+    Wire.endTransmission();
+
 }
 
 char HardwareRead()
 {
+    static char bits=-1;
     Wire.requestFrom(IC_8574,1);
-    return Wire.read() & 0x1f;
+    if (Wire.available()) {
+        bits = Wire.read(); 
+    }
+    return bits & 0x1f;
 }
 
 void HardwareLED(bool bOn)

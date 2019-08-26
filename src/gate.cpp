@@ -14,7 +14,7 @@ static unsigned long g_timePositionLastChange = 0;
 static unsigned long g_timeBeginWait = 0;
 static unsigned long g_timeWaitFor = 0;
 
-
+static MqttTopic mqttTopicPosition("position");
 
 static void gateReportPosition() {
     static GatePosition positionReported = GatePosition_Undefined;
@@ -25,11 +25,8 @@ static void gateReportPosition() {
             return;
         }
     }
-    String msg = String(g_position, DEC);
-    MqttPublish(MYPI_TOR_ID "/position", msg.c_str());
+    mqttTopicPosition.Publish(String(g_position, DEC).c_str());
 
-    msg = String(now, DEC);
-    MqttPublish(MYPI_TOR_ID "/time", msg.c_str());
     positionReported = g_position;
     lastReportedMillis = now;
 }

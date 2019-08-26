@@ -3,9 +3,12 @@
 #include "mqtt.h"
 #include "settings.h"
 
-void DebugDump(const char * msg)
+void DebugDump(const char * topic, const char * msg)
 {
-    MqttPublish(MYPI_TOR_ID "/debug", msg);
+    if (DebugEnabled()) 
+    {
+        MqttTopic("debug",topic).Publish(msg);
+    }
 }
 
 bool DebugEnabled()

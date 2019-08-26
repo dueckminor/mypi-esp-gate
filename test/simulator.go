@@ -82,7 +82,7 @@ func main() {
 		currentDirection := 0
 
 		for true {
-			mqttClient.Publish("tor2/debug/setbits", 2, false, strconv.FormatInt(int64(sensorBitTable[position]), 10))
+			mqttClient.Publish("tor2/simulator/sensor_bits", 2, false, strconv.FormatInt(int64(sensorBitTable[position]), 10))
 			time.Sleep(time.Millisecond * 50)
 			if relais {
 				if currentDirection != 0 {

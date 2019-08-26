@@ -6,54 +6,38 @@
 #include "actor.h"
 #include "wifi.h"
 #include "mqtt.h"
-
+#include "debug.h"
 
 void setup() {
   HardwareInitialize();
   WifiInitialize();
   MqttInitialize();
-
-  String msg = String((int)(sizeof(unsigned long)), DEC);
-  MqttPublish(MYPI_TOR_ID "/debug/sizeof_unsigned_long", msg.c_str());
-
 }
 
 int loopcount = 0;
-String dbgMsg = "";
-
-static void MqttSendStatistics() {
-    static uint64_t lastTime = 0;
-    uint64_t thisTime = micros64();
-
-    if ((thisTime - lastTime) < 5000000L) {
-      return;
-    }
-
-    String msg = String((int)(thisTime-lastTime), DEC);
-    MqttPublish(MYPI_TOR_ID "/loop/time", msg.c_str());
-    if (dbgMsg != "") {
-      MqttPublish(MYPI_TOR_ID "/debug", dbgMsg.c_str());
-      dbgMsg = "";
-    }
-    lastTime = thisTime;
-}
 
 void loop() {
+  char bits = HardwareRead();
+  MqttBeginLoop();
+
   // Toggle the hardware LED (the blue on an ESP-01) every 1000 loops
   // a constantly flashing LED indicates a good network connection
   // (the faster the better)
-  if (0==(loopcount%1000)) {
+  if (0==(loopcount%1000))
+  {
+    //DebugDump("loopcount",String(loopcount,DEC).c_str());
+    //DebugDump("sensor_bits",String((unsigned long)bits,BIN).c_str());
     HardwareLED((loopcount/1000)&1);
   }
-  loopcount++;
 
-  MqttBeginLoop();
-
-  ActorLoop();
-  SensorAnalyseInput(HardwareRead());
+  if (0==(loopcount%50))
+  {
+    MqttEnsureConnected();
+  }
+  ActorLoopHandler();
+  SensorLoopHandler(bits);
 
   GateLoopHandler();
 
-  MqttEnsureConnected();
-  MqttSendStatistics();
+  loopcount++;
 }

@@ -20,14 +20,14 @@ void MqttInitialize()
 
 static void mqttCallback(char* topic, byte* payload, unsigned int length) {
   // Switch on the LED if an 1 was received as first character
-  if (0 == strcmp(topic, MYPI_TOR_ID "/debug/setbits")) {
+  if (0 == strcmp(topic, MYPI_TOR_ID "/simulator/sensor_bits")) {
     char buffer[5];
     if (length>4) {
       return;
     }
     memcpy(buffer,payload,length);
     buffer[length]='\0';
-    SensorAnalyseDebugInput(atoi(buffer));
+    SensorSimulatorInput(atoi(buffer));
     return;
   }
   else if (0 == strcmp(topic, MYPI_TOR_ID "/relais")) {
@@ -48,7 +48,7 @@ static void mqttCallback(char* topic, byte* payload, unsigned int length) {
 bool mqttLoopConnected = false;
 
 void MqttEnsureConnected();
-boolean MqttPublish(const char* topic, const char* payload);
+bool MqttPublish(const char* topic, const char* payload);
 
 void MqttBeginLoop() {
   mqttLoopConnected = false;
@@ -61,12 +61,14 @@ void mqttReconnect() {
     String clientId = "ESP01-";
     clientId += String(random(0xffff), HEX);
     // Attempt to connect
-    if (mqttClient.connect(clientId.c_str())) {
+    if (mqttClient.connect(clientId.c_str(),MYPI_TOR_ID "/status",2,true,"down")) {
       // Once connected, publish an announcement...
+      MqttEnsureConnected();
+      mqttClient.publish(MYPI_TOR_ID "/status", "up", true);
       MqttPublish(MYPI_TOR_ID "/status", "up");
       // ... and resubscribe
       mqttClient.subscribe(MYPI_TOR_ID "/relais");
-      mqttClient.subscribe(MYPI_TOR_ID "/debug/#");
+      mqttClient.subscribe(MYPI_TOR_ID "/simulator/#");
       mqttClient.subscribe(MYPI_TOR_ID "/open");
       mqttClient.subscribe(MYPI_TOR_ID "/close");
     } else {
@@ -85,7 +87,7 @@ void MqttEnsureConnected() {
   }
 }
 
-boolean MqttPublish(const char* topic, const char* payload) {
+bool MqttPublish(const char* topic, const char* payload) {
   MqttEnsureConnected();
   return mqttClient.publish(topic, payload);
 }
@@ -102,3 +104,19 @@ void mqttKeepAlive() {
 
   lastTime = millis();
 }
+
+MqttTopic::MqttTopic(const char * topic) : m_topic(String(MYPI_TOR_ID "/")+topic)
+{
+
+}
+
+MqttTopic::MqttTopic(const char * group, const char * topic) : m_topic(String(MYPI_TOR_ID "/")+group+"/"+topic)
+{
+
+}
+
+bool MqttTopic::Publish(const char * payload)
+{
+  return MqttPublish(m_topic.c_str(),payload);
+}
+

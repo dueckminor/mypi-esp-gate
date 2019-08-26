@@ -13,6 +13,7 @@ void sensorAnalyseBits(char input)
         // input hasn't changed -> nothing todo
         return;
     }
+    lastInput = input;
 
     GatePosition positionCandidate = GatePosition(((~input) >> 1) & 7);
     bool bOpenDirection = ! ((input >> 0) & 1);
@@ -24,11 +25,39 @@ void sensorAnalyseBits(char input)
       position = positionCandidate;
     }
 
+    if (DebugEnabled())
+    {
+        String msg = "00000";
+        msg +=String((unsigned long)input, BIN);
+        msg = msg.substring(msg.length()-5);
+        if (bOpenDirection && bCloseDirection) {
+            msg += " (" + String(position,DEC) + ")";
+        }
+        DebugDump("sensor_bits",msg.c_str());
+    }
+
     GateAnalyseInput(position,bOpenDirection,bCloseDirection);
 }
 
-void SensorAnalyseInput(char input)
+static bool s_bHaveSimulatorInput = false;
+static char s_SimulatorInput = 0;
+
+void SensorSimulatorInput(char input)
 {
+    input &= 0x1f;
+    s_SimulatorInput = input;
+    s_bHaveSimulatorInput = true;
+}
+
+
+void SensorLoopHandler(char input)
+{
+    if (s_bHaveSimulatorInput) 
+    {
+        sensorAnalyseBits(s_SimulatorInput);
+        s_bHaveSimulatorInput = false;
+    }
+
      // mask out all irelevant sensor bits
     input &= 0x1f;
 
@@ -38,12 +67,5 @@ void SensorAnalyseInput(char input)
         return;
     }
     lastInput = input;
-    sensorAnalyseBits(input);
-}
-
-void SensorAnalyseDebugInput(char input)
-{
-    // mask out all irelevant sensor bits
-    input &= 0x1f;
     sensorAnalyseBits(input);
 }

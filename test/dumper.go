@@ -30,6 +30,7 @@ func main() {
 		panic(token.Error())
 	}
 
+	mqttClient.Subscribe("tor/#", 2, mqttHandler)
 	mqttClient.Subscribe("tor2/#", 2, mqttHandler)
 
 	quit := make(chan struct{})

@@ -3,6 +3,6 @@
 
 extern void ActorRelaisOff();
 extern void ActorRelaisOn();
-extern void ActorLoop();
+extern void ActorLoopHandler();
 
 #endif/*__MYPI_ESP_GATE_ACTOR_H__*/
