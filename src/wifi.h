@@ -4,6 +4,10 @@
 #include <ESP8266WiFi.h>
 
 extern void WifiInitialize();
-extern WiFiClient& WifiGetClient();
+extern bool WifiIsConnected();
+extern WiFiClient &WifiGetClient();
 
-#endif/*__MYPI_ESP_GATE_WIFI_H__*/
+// WifiLoop returns true if connected
+extern bool WifiLoop();
+
+#endif /*__MYPI_ESP_GATE_WIFI_H__*/

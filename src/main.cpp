@@ -7,35 +7,40 @@
 #include "wifi.h"
 #include "mqtt.h"
 #include "debug.h"
+#include "timer.h"
 
-void setup() {
+void setup()
+{
+  Serial.begin(74880);
+
   HardwareInitialize();
   WifiInitialize();
   MqttInitialize();
+  DebugDump("loopcount", "0 (restart)");
 }
 
 int loopcount = 0;
 
-void loop() {
-  char bits = HardwareRead();
+void loop()
+{
+  TimerLoop();
+  WifiLoop();
+  HardwareLoop();
+
+  unsigned char bits = HardwareHaveEvents();
   MqttBeginLoop();
 
-  // Toggle the hardware LED (the blue on an ESP-01) every 1000 loops
-  // a constantly flashing LED indicates a good network connection
-  // (the faster the better)
-  if (0==(loopcount%1000))
-  {
-    //DebugDump("loopcount",String(loopcount,DEC).c_str());
-    //DebugDump("sensor_bits",String((unsigned long)bits,BIN).c_str());
-    HardwareLED((loopcount/1000)&1);
-  }
-
-  if (0==(loopcount%50))
-  {
-    MqttEnsureConnected();
-  }
+  MqttEnsureConnected();
   ActorLoopHandler();
-  SensorLoopHandler(bits);
+
+  for (;HardwareHaveEvents();)
+  {
+    bits = HardwareRead();
+
+    DebugDump("sensor_bits",String((unsigned long)bits,BIN).c_str());
+
+    SensorLoopHandler(bits);
+  }
 
   GateLoopHandler();
 

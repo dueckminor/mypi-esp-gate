@@ -2,8 +2,13 @@
 #define __MYPI_ESP_GATE_HARDWARE_H__
 
 extern void HardwareInitialize();
+extern void HardwareLoop();
+
 extern void HardwareWrite(bool bOn);
 extern char HardwareRead();
 extern void HardwareLED(bool bOn);
+extern void HardwareDimLED(int value);
 
-#endif/*__MYPI_ESP_GATE_HARDWARE_H__*/
+extern unsigned char HardwareHaveEvents();
+
+#endif /*__MYPI_ESP_GATE_HARDWARE_H__*/
