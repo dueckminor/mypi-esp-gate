@@ -13,11 +13,22 @@ char IC_8574_OUTPUT = 0x80 + 0x1f;
 #define PIN_SCL 3
 #else
 // WEMOS D1 Mini
+
+// D0 = GPIO16   builtin-pull-down  X
+// D1 = GPIO5    releais
+// D2 = GPIO4                       X
+// D3 = GPIO0    boot mode
+// D4 = GPIO2    boot mode + led
+// D5 = GPIO14                      X
+// D6 = GPIO12                      X
+// D7 = GPIO13                      X
+// D8 = GPIO15   boot mode
+
 #define LED_ON_BOARD D4
 #define PIN_RELAIS D1
 
 #define PIN_SENSOR_0 D2
-#define PIN_SENSOR_1 D3
+#define PIN_SENSOR_1 D0
 #define PIN_SENSOR_2 D5
 #define PIN_SENSOR_3 D6
 #define PIN_SENSOR_4 D7
@@ -81,16 +92,16 @@ void HardwareInitialize()
     memset((void*)aBits,0xff,sizeof(aBits));
 
     pinMode(PIN_RELAIS, OUTPUT);
-    pinMode(PIN_SENSOR_0, INPUT);
+    pinMode(PIN_SENSOR_0, INPUT_PULLUP);
     pinMode(PIN_SENSOR_1, INPUT);
-    pinMode(PIN_SENSOR_2, INPUT);
-    pinMode(PIN_SENSOR_3, INPUT);
-    pinMode(PIN_SENSOR_4, INPUT);
+    pinMode(PIN_SENSOR_2, INPUT_PULLUP);
+    pinMode(PIN_SENSOR_3, INPUT_PULLUP);
+    pinMode(PIN_SENSOR_4, INPUT_PULLUP);
 
     attachInterrupt(digitalPinToInterrupt(PIN_SENSOR_0),change,CHANGE);
-    attachInterrupt(digitalPinToInterrupt(PIN_SENSOR_1),change,CHANGE);
-    attachInterrupt(digitalPinToInterrupt(PIN_SENSOR_2),change,CHANGE);
-    attachInterrupt(digitalPinToInterrupt(PIN_SENSOR_3),change,CHANGE);
+    // attachInterrupt(digitalPinToInterrupt(PIN_SENSOR_1),change,CHANGE);
+    // attachInterrupt(digitalPinToInterrupt(PIN_SENSOR_2),change,CHANGE);
+    // attachInterrupt(digitalPinToInterrupt(PIN_SENSOR_3),change,CHANGE);
     attachInterrupt(digitalPinToInterrupt(PIN_SENSOR_4),change,CHANGE);
     change();
 #endif

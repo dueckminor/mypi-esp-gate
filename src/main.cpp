@@ -24,8 +24,14 @@ int loopcount = 0;
 void loop()
 {
   TimerLoop();
-  WifiLoop();
   HardwareLoop();
+
+  if (!WifiLoop()) {
+    TimerSetBlinkPatternSOS();
+    delay(100);
+    return;
+  }
+  TimerSetBlinkPatternOK();
 
   unsigned char bits = HardwareHaveEvents();
   MqttBeginLoop();
@@ -43,6 +49,7 @@ void loop()
   }
 
   GateLoopHandler();
+  DebugLoop();
 
   loopcount++;
 }

@@ -1,7 +1,12 @@
 #ifndef __MYPI_ESP_GATE_TIMER_H__
 #define __MYPI_ESP_GATE_TIMER_H__
 
+#include <stdint.h>
+
 extern unsigned long TimerLoop();
+extern void TimerSetBlinkPattern(uint32_t blinkPattern);
+extern void TimerSetBlinkPatternOK();
+extern void TimerSetBlinkPatternSOS();
 
 class Timer
 {

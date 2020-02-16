@@ -31,6 +31,19 @@ unsigned long TimerLoop()
     return millisLoop;
 }
 
+void TimerSetBlinkPattern(uint32_t _blinkPattern)
+{
+    blinkPatternNext = _blinkPattern;
+}
+void TimerSetBlinkPatternOK()
+{
+   blinkPatternNext = blinkPatternOK;
+}
+void TimerSetBlinkPatternSOS()
+{
+   blinkPatternNext = blinkPatternSOS;
+}
+
 Timer::Timer(unsigned long timeout)
 {
     m_timeout = timeout;
