@@ -12,8 +12,6 @@ static uint8_t BSSID[6];
 static bool bHaveBSSID=false;
 static bool bHaveChangedStatus = false;
 
-static String theWifiReport;
-
 void WifiOnComplete(int nNetworks);
 
 
@@ -69,13 +67,10 @@ void WifiOnComplete(int nNetworks)
 
   WifiReport += "Using:\n";
   sprintf(dump, "- %s (%s) %d dBm\n", bestBSSID.c_str(), WiFi.SSID(iBestNetwork).c_str(), rssi);
-  WifiReport += dump;  
+  WifiReport += dump;
 
-  Serial.printf(WifiReport.c_str());
+  DebugDump("wifi",WifiReport.c_str());
 
-  Serial.printf("USED: %s (%s) %d dBm\n", usedBSSID.c_str(), WiFi.SSID().c_str(), WiFi.RSSI());
-  memcpy(BSSID,bssid,6);
-  theWifiReport = WifiReport;
   bHaveBSSID = true;
 }
 static bool WifiSwitchIfPossible()
@@ -96,44 +91,53 @@ static bool WifiSwitchIfPossible()
 bool WifiLoop()
 {
   wl_status_t wifiStatus = WiFi.status();
-  
-  switch (wifiStatus)
-  {
-    case WL_CONNECTED:
-      break;
-    case WL_DISCONNECTED:
-      return false;
-    case WL_IDLE_STATUS:
-      if (!WifiSwitchIfPossible())
-      {
-        if (WiFi.scanComplete() != WIFI_SCAN_RUNNING) {
-          WiFi.scanNetworksAsync(&WifiOnComplete);
-        }
-      }
-      return false;
-    default:
-      return false;
-  }
+  static Timer timer(1000);
+  bool bTick = timer.Tick();
 
   if (WifiSwitchIfPossible())
   {
     return false;
   }
 
-  static Timer timer(5000);
-  if (bHaveChangedStatus || timer.Tick())
+  #define REPORT_FREQENCY 10
+  static int cSecondsNotConnected = 0;
+  static int cSecondsBadState = 0;
+  static int cSecondsNoReport = REPORT_FREQENCY;
+
+  if (wifiStatus != WL_CONNECTED)
   {
-    long rssi = WiFi.RSSI();
-
-    if (theWifiReport.length() > 0) {
-      DebugDump("wifi",theWifiReport.c_str());
-      theWifiReport = "";
+    cSecondsNotConnected += bTick;
+    if (cSecondsNotConnected > 20 && (WiFi.scanComplete() != WIFI_SCAN_RUNNING)) {
+        DebugDump("wifi","scanning...");
+        WiFi.scanNetworksAsync(&WifiOnComplete);
+        cSecondsNotConnected = 0;
     }
+    return false;
+  }
 
+  cSecondsNotConnected = 0;
+  cSecondsNoReport += bTick;
+  long rssi = WiFi.RSSI();
+  if (rssi > 0)
+  {
+    cSecondsBadState += bTick;
+  }
+ 
+  if (cSecondsBadState > 10)
+  {
+    DebugDump("wifi","disconnect because of status 31");
+    WiFi.disconnect();
+    cSecondsBadState = 0;
+    return false;
+  }
+
+  if (bHaveChangedStatus || cSecondsNoReport>=REPORT_FREQENCY)
+  {
+    cSecondsNoReport = 0;
     char msg[128];
     snprintf(msg,sizeof(msg),"{\"rssi\":%i,\"ssid\":\"%s\",\"bssid\":\"%s\"}",(int)rssi,WiFi.SSID().c_str(),WiFi.BSSIDstr().c_str());
     DebugDump("wifi",msg);
-    if ((rssi< -85) || (rssi > 0))
+    if (rssi <= -90)
     {
         if (WiFi.scanComplete() != WIFI_SCAN_RUNNING) {
           DebugDump("wifi","scanning...");

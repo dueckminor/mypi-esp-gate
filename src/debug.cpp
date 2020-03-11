@@ -4,37 +4,38 @@
 #include "settings.h"
 #include "wifi.h"
 
-static char aszLines[32][80];
-static char aszTopic[32][16];
+#define MAX_LINES 64
+static String aszLines[MAX_LINES];
+static String aszTopic[MAX_LINES];
 static int cLines=0;
 static uint8_t iLineRead=0;
 static uint8_t iLineWrite=0;
 
 static void debugAddLine(const char * topic, const char * msg) 
 {
-    if (cLines==32) {
+    if (cLines==MAX_LINES) {
         iLineRead++;
-        iLineRead %= 32;
+        iLineRead %= MAX_LINES;
         cLines--;
     }
 
-    strncpy(aszTopic[iLineWrite],topic,15);
-    aszTopic[iLineWrite][15]='\0';
-
-    strncpy(aszLines[iLineWrite],msg,79);
-    aszLines[iLineWrite][79]='\0';
+    aszTopic[iLineWrite] = topic;
+    aszLines[iLineWrite] = msg;
 
     iLineWrite++;
-    iLineWrite %= 32;
+    iLineWrite %= MAX_LINES;
     cLines++;
+
+    if (cLines > (MAX_LINES/2)) 
+    {
+        DebugLoop();
+    }
 }
 
 void DebugDump(const char * topic, const char * msg)
 {
-    Serial.printf("DebugDump()\n");
     if (!msg)
     {
-        Serial.printf("DebugDump() done\n");
         return;
     }
     if (DebugEnabled()) 
@@ -55,10 +56,13 @@ void DebugDump(const char * topic, const char * msg)
             }
         }
         if (cchLine) {
+            if (szLine[cchLine-1]!='\n') {
+                szLine[cchLine]='\n';
+                szLine[cchLine+1]='\0';
+            }
             debugAddLine(topic,szLine);
         }
     }
-    Serial.printf("DebugDump() done\n");
 }
 
 void DebugLoop() {
@@ -68,9 +72,11 @@ void DebugLoop() {
         {
             break;
         }
-        MqttTopic("debug",aszTopic[iLineRead]).Publish(aszLines[iLineRead]);
+        MqttTopic("debug",aszTopic[iLineRead].c_str()).Publish(aszLines[iLineRead].c_str());
+        aszTopic[iLineRead].clear();
+        aszLines[iLineRead].clear();
         iLineRead++;
-        iLineRead %= 32;
+        iLineRead %= MAX_LINES;
         cLines--;
     }
 }
