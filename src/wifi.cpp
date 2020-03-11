@@ -103,10 +103,12 @@ bool WifiLoop()
   static int cSecondsNotConnected = 0;
   static int cSecondsBadState = 0;
   static int cSecondsNoReport = REPORT_FREQENCY;
+  static int cSecondsNoTLS = 0;
 
   if (wifiStatus != WL_CONNECTED)
   {
     cSecondsNotConnected += bTick;
+    cSecondsNoTLS = 0;
     if (cSecondsNotConnected > 20 && (WiFi.scanComplete() != WIFI_SCAN_RUNNING)) {
         DebugDump("wifi","scanning...");
         WiFi.scanNetworksAsync(&WifiOnComplete);
@@ -128,6 +130,7 @@ bool WifiLoop()
     DebugDump("wifi","disconnect because of status 31");
     WiFi.disconnect();
     cSecondsBadState = 0;
+    cSecondsNoTLS = 0;
     return false;
   }
 
@@ -145,6 +148,20 @@ bool WifiLoop()
         }
     }
     bHaveChangedStatus = false;
+  }
+
+  if (espClient.connected())
+  {
+    cSecondsNoTLS=0;
+  }
+  else
+  {
+    cSecondsNoTLS++;
+    DebugDump("wifi","no tls connection!");
+    if (cSecondsNoTLS>10)
+    {
+      ESP.restart();
+    }
   }
 
   return true;
