@@ -22,6 +22,7 @@ void WifiInitialize()
 
   static BearSSL::X509List trust((const uint8_t *)MYPI_CA_CERT, sizeof(MYPI_CA_CERT));
   espClient.setTrustAnchors(&trust);
+  //espClient.setInsecure();
   WiFi.scanNetworksAsync(&WifiOnComplete);
 }
 
@@ -45,7 +46,7 @@ void WifiOnComplete(int nNetworks)
   for (int i = 0; i < nNetworks; i++)
   {
     int32_t rssiThis = WiFi.RSSI(i);
-    
+
     sprintf(dump, "- %s (%s) %d dBm\n", WiFi.BSSIDstr(i).c_str(), WiFi.SSID(i).c_str(), WiFi.RSSI(i));
     WifiReport += dump;
 
@@ -124,7 +125,7 @@ bool WifiLoop()
   {
     cSecondsBadState += bTick;
   }
- 
+
   if (cSecondsBadState > 10)
   {
     DebugDump("wifi","disconnect because of status 31");

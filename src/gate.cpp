@@ -21,7 +21,8 @@ static void gateReportPosition() {
     static unsigned long lastReportedMillis = 0;
     unsigned long now = millis();
     if (positionReported == g_position) {
-        if ((now - lastReportedMillis) < 1000) {
+        if ((now - lastReportedMillis) < 60*1000) {
+            // publish the position every 60 seconds
             return;
         }
     }
@@ -32,7 +33,7 @@ static void gateReportPosition() {
 }
 
 void GateAnalyseInput(
-    GatePosition position,     // the last known position
+    GatePosition position, // the last known position
     bool bOpenDirection, // true if we are over the Sensor, but a little bit in close direction
     bool bCloseDirection // true if we are over the Sensor, but a little bit in open direction
 )
