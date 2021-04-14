@@ -2,28 +2,67 @@
 #include "settings.h"
 #include "debug.h"
 #include "timer.h"
+#include "hardware.h"
 
 WiFiClientSecure espClient;
 
-const char *ssid = MYPI_SSID;
-const char *password = MYPI_PSK;
-
+String ssid;
 static uint8_t BSSID[6];
 static bool bHaveBSSID=false;
 static bool bHaveChangedStatus = false;
 
 void WifiOnComplete(int nNetworks);
 
+bool WifiHavePSK()
+{
+  return WiFi.psk().length() > 0;
+}
 
 void WifiInitialize()
 {
   WiFi.mode(WIFI_STA);
   WiFi.hostname(MYPI_TOR_HOSTNAME);
 
+  DebugDump("wifi",WiFi.SSID().c_str());
+ 
   static BearSSL::X509List trust((const uint8_t *)MYPI_CA_CERT, sizeof(MYPI_CA_CERT));
   espClient.setTrustAnchors(&trust);
-  //espClient.setInsecure();
-  WiFi.scanNetworksAsync(&WifiOnComplete);
+
+  ssid = WiFi.SSID();
+
+  espClient.setInsecure();
+  if (WifiHavePSK()) {
+    WiFi.scanNetworksAsync(&WifiOnComplete);
+  }
+}
+
+void WifiInitializeWPS() {
+  DebugDump("wifi","WPS started");
+  if (WiFi.beginWPSConfig()) {
+    if(WiFi.psk().length() > 0) {
+      DebugDump("wifi","WPS succedded");
+      DebugDump("wifi",WiFi.SSID().c_str());
+    } else {
+      DebugDump("wifi","WPS failed (timeout)");
+    }
+  } else {
+    DebugDump("wifi","WPS failed");
+  }
+  ssid = WiFi.SSID();
+  if (WifiHavePSK()) {
+    WiFi.scanNetworksAsync(&WifiOnComplete);
+  }
+}
+
+
+bool WifiSetupLoop() {
+  if (WifiIsConnected()) {
+    return true;
+  }
+  if (WiFi.SSID().length()==0) {
+    return false;
+  }
+  return WifiLoop();
 }
 
 bool WifiIsConnected()
@@ -37,9 +76,7 @@ void WifiOnComplete(int nNetworks)
   Serial.println(nNetworks);
 
   int32_t rssi = -1000;
-  uint8_t *bssid = NULL;
   int iBestNetwork = -1;
-
   String WifiReport = "WiFi scan results:\n";
   char dump[100];
 
@@ -57,7 +94,6 @@ void WifiOnComplete(int nNetworks)
 
     if ((rssiThis > rssi) || (rssi > 0))
     {
-      bssid = WiFi.BSSID(i);
       rssi = rssiThis;
       iBestNetwork = i;
     }
@@ -83,7 +119,7 @@ static bool WifiSwitchIfPossible()
 
   bHaveChangedStatus = true;
   Serial.println("have BSSID");
-  WiFi.begin(ssid, password, 0, BSSID);
+  WiFi.begin(WiFi.SSID(), WiFi.psk(), 0, BSSID);
   bHaveBSSID = false;
   return true;
 }

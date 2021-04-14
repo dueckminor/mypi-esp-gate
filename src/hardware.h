@@ -6,6 +6,7 @@ extern void HardwareLoop();
 
 extern void HardwareWrite(bool bOn);
 extern char HardwareRead();
+extern bool HardwareReadWPS();
 extern void HardwareLED(bool bOn);
 extern void HardwareDimLED(int value);
 

@@ -2,12 +2,15 @@
 #include "hardware.h"
 #include <Arduino.h>
 
-static unsigned long blinkPatternSOS = 
+static unsigned long blinkPatternSOS =
   1<<0  | 1<<2  | 1<<4 \
 | 3<<7  | 3<<10 | 3<<13 \
 | 1<<17 | 1<<19 | 1<<21;
 
 static unsigned long blinkPatternOK = 1;
+
+static unsigned long blinkPatternInit =
+  0x1f << 0 | 0x1f << 10 | 0x1f << 20;
 
 static unsigned long millisLoop = 0;
 static unsigned long blinkPattern = 5;
@@ -42,6 +45,9 @@ void TimerSetBlinkPatternOK()
 void TimerSetBlinkPatternSOS()
 {
    blinkPatternNext = blinkPatternSOS;
+}
+void TimerSetBlinkPatternInit() {
+    blinkPatternNext = blinkPatternInit;
 }
 
 Timer::Timer(unsigned long timeout)

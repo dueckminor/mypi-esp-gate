@@ -108,6 +108,4 @@ void GateLoopHandler()
         // we should wait for some time, but this time is over.
         g_timeWaitFor = 0;
     }
-
-
 }

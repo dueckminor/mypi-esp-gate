@@ -7,6 +7,8 @@ extern unsigned long TimerLoop();
 extern void TimerSetBlinkPattern(uint32_t blinkPattern);
 extern void TimerSetBlinkPatternOK();
 extern void TimerSetBlinkPatternSOS();
+extern void TimerSetBlinkPatternInit();
+
 
 class Timer
 {

@@ -12,9 +12,28 @@
 void setup()
 {
   Serial.begin(74880);
+  TimerSetBlinkPatternInit();
 
   HardwareInitialize();
   WifiInitialize();
+
+  int cWPS = 0;
+  while (!WifiSetupLoop()) {
+    TimerLoop();
+    delay(100);
+    if (HardwareReadWPS()) {
+      cWPS++;
+    } else {
+      cWPS = 0;
+    }
+
+    if (cWPS == 30) {
+      HardwareLED(true);
+      WifiInitializeWPS();
+      cWPS = 0;
+    }
+  }
+
   MqttInitialize();
   DebugDump("loopcount", "0 (restart)");
 }
@@ -31,6 +50,7 @@ void loop()
     delay(100);
     return;
   }
+
   TimerSetBlinkPatternOK();
 
   unsigned char bits = HardwareHaveEvents();

@@ -25,7 +25,9 @@ char IC_8574_OUTPUT = 0x80 + 0x1f;
 // D8 = GPIO15   boot mode
 
 #define LED_ON_BOARD D4
-#define PIN_RELAIS D1
+#define PIN_RELAIS   D1
+
+#define PIN_WPS      D3
 
 #define PIN_SENSOR_0 D2
 #define PIN_SENSOR_1 D0
@@ -92,6 +94,7 @@ void HardwareInitialize()
     memset((void*)aBits,0xff,sizeof(aBits));
 
     pinMode(PIN_RELAIS, OUTPUT);
+    pinMode(PIN_WPS,      INPUT_PULLUP);
     pinMode(PIN_SENSOR_0, INPUT_PULLUP);
     pinMode(PIN_SENSOR_1, INPUT);
     pinMode(PIN_SENSOR_2, INPUT_PULLUP);
@@ -184,4 +187,8 @@ void HardwareLED(bool bOn)
 void HardwareDimLED(int value)
 {
     analogWrite(LED_ON_BOARD, value);
+}
+
+bool HardwareReadWPS() {
+    return digitalRead(PIN_WPS) == 0;
 }
