@@ -6,3 +6,4 @@
 .vscode/launch.json
 include/settings.h
 /root_ca_cert.pem
+__pycache__
