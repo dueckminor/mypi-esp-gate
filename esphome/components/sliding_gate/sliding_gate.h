@@ -4,12 +4,13 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/automation.h"
 #include "esphome/core/controller.h"
+#include "esphome/components/cover/cover.h"
 
 namespace esphome {
 namespace sliding_gate {
 
 /// This class implements support for the Tx20 Wind sensor.
-class SlidingGateComponent : public sensor::Sensor, public Component {
+class SlidingGateComponent : public cover::Cover, public Component {
  public:
 
   void set_pin(const std::string &pin_name, InternalGPIOPin *pin);
@@ -18,6 +19,11 @@ class SlidingGateComponent : public sensor::Sensor, public Component {
   void dump_config() override;
   //float get_setup_priority() const override;
   void loop() override;
+  void relay_handle_loop(bool force=false);
+
+  virtual cover::CoverTraits get_traits();
+  virtual void control(const cover::CoverCall &call);
+  virtual void publish(bool force=false);
 
   static void handle_interrupt(SlidingGateComponent *_this);
 
@@ -34,12 +40,35 @@ class SlidingGateComponent : public sensor::Sensor, public Component {
   InternalGPIOPin *pin_pos_2_;
   ISRInternalGPIOPin pin_pos_2_isr;
 
-  volatile int dir_state;
-  volatile int pos;
-  volatile int count;
+  InternalGPIOPin *pin_relay_;
 
-  int reported_dir;
-  int reported_pos;
+protected: // detection
+  volatile int detected_dir_bits;
+  volatile int detected_pos_bits;
+  volatile int detected_motion;
+  volatile cover::CoverOperation detected_operation;
+  unsigned int detected_motion_millis;
+
+protected:
+  float reported_position;
+  cover::CoverOperation reported_operation;
+
+protected: // timing
+  unsigned long now;
+
+protected: // control
+  virtual void set_operation(cover::CoverOperation operation);
+  cover::CoverOperation operation_next;
+  int control_tries_remaining;
+  unsigned int control_millis;
+  float control_target_position;
+
+  virtual void control_check(bool force=false);
+
+protected:   // the relay
+  int relay_state; // the state of the relay
+  unsigned int relay_millis; // the time where the relay has been activated
+  virtual void relay_click(int clicks=1);
 };
 
 }  // namespace tx20

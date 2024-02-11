@@ -19,14 +19,27 @@ void SlidingGateComponent::set_pin(const std::string &pin_name, InternalGPIOPin 
     this->pin_pos_1_ = pin;
   } else if (pin_name == "pin_pos_2") {
     this->pin_pos_2_ = pin;
+  } else if (pin_name == "pin_relay") {
+    this->pin_relay_ = pin;
   }
 }
 
 void SlidingGateComponent::setup() {
-  this->dir_state = -1;
-  this->pos = -1;
-  this->reported_dir = -1;
-  this->reported_pos = -1;
+  this->position = 0.0;
+  this->control_target_position = 0.0;
+
+  this->detected_dir_bits = -1;
+  this->detected_pos_bits = -1;
+  this->detected_motion = false;
+  this->detected_operation = cover::COVER_OPERATION_IDLE;
+  this->current_operation = cover::COVER_OPERATION_IDLE;
+  this->operation_next = cover::COVER_OPERATION_IDLE;
+
+  this->reported_operation = cover::COVER_OPERATION_IDLE;
+  this->reported_position = -1.0; // this forces that the state gets published
+
+  this->relay_millis = 0;
+  this->relay_state = 0;
 
   this->pin_dir_0_->setup();
   this->pin_dir_1_->setup();
@@ -36,16 +49,16 @@ void SlidingGateComponent::setup() {
 
   this->pin_dir_0_isr = this->pin_dir_0_->to_isr();
   this->pin_dir_1_isr = this->pin_dir_1_->to_isr();
-
-  // this->pin_pos_0_isr = this->pin_pos_0_->to_isr();
-  // this->pin_pos_1_isr = this->pin_pos_1_->to_isr();
-  // this->pin_pos_2_isr = this->pin_pos_2_->to_isr();
+  this->pin_pos_0_isr = this->pin_pos_0_->to_isr();
+  this->pin_pos_1_isr = this->pin_pos_1_->to_isr();
+  this->pin_pos_2_isr = this->pin_pos_2_->to_isr();
 
   this->pin_dir_0_->attach_interrupt<SlidingGateComponent>(&SlidingGateComponent::handle_interrupt, this, gpio::INTERRUPT_ANY_EDGE);
   this->pin_dir_1_->attach_interrupt<SlidingGateComponent>(&SlidingGateComponent::handle_interrupt, this, gpio::INTERRUPT_ANY_EDGE);
-  // this->pin_pos_0_->attach_interrupt<SlidingGateComponent>(&SlidingGateComponent::handle_interrupt, this, gpio::INTERRUPT_ANY_EDGE);
-  // this->pin_pos_1_->attach_interrupt<SlidingGateComponent>(&SlidingGateComponent::handle_interrupt, this, gpio::INTERRUPT_ANY_EDGE);
-  // this->pin_pos_2_->attach_interrupt<SlidingGateComponent>(&SlidingGateComponent::handle_interrupt, this, gpio::INTERRUPT_ANY_EDGE);
+
+  handle_interrupt(this);
+
+
 }
 
 void SlidingGateComponent::dump_config() {
@@ -55,57 +68,269 @@ void SlidingGateComponent::dump_config() {
   LOG_PIN("  Pin-Pos-0: ", this->pin_pos_0_);
   LOG_PIN("  Pin-Pos-1: ", this->pin_pos_1_);
   LOG_PIN("  Pin-Pos-2: ", this->pin_pos_2_);
+  LOG_PIN("  Pin-Relay: ", this->pin_relay_);
 }
-
-// float SlidingGateComponent::get_setup_priority() {
-  
-// }
 
 void SlidingGateComponent::loop() {
-  if (this->reported_dir != this->dir_state) {
-    ESP_LOGD(TAG, "dir_state %x", this->dir_state);
-    this->reported_dir = this->dir_state;
-    // ESP_LOGD(TAG,"pin_pos_0: %x",this->pin_pos_0_->digital_read());
-    // ESP_LOGD(TAG,"pin_pos_1: %x",this->pin_pos_1_->digital_read());
-    // ESP_LOGD(TAG,"pin_pos_2: %x",this->pin_pos_2_->digital_read());
+  this->now = millis();
+  this->relay_handle_loop();
+
+  if (this->detected_operation != cover::COVER_OPERATION_IDLE) {
+    this->set_operation(this->detected_operation);
+    this->detected_operation = cover::COVER_OPERATION_IDLE;
   }
-  if (this->reported_pos != this->pos) {
-    ESP_LOGD(TAG, "pos %x", this->pos);
-    this->reported_pos = this->pos;
+
+  if (this->detected_motion) {
+    this->position = (1.0/7) * (this->detected_pos_bits);
+    this->detected_motion_millis = this->now;
+  } else {
+    if ((this->now - this->detected_motion_millis) > 15000) {
+      ESP_LOGD(TAG,"No motion detected since 15 seconds. Assuming idle operation...");
+      this->set_operation(cover::COVER_OPERATION_IDLE);
+    }
+  }
+
+  if (this->position == cover::COVER_CLOSED && this->current_operation == cover::COVER_OPERATION_CLOSING) {
+    this->set_operation(cover::COVER_OPERATION_IDLE);
+  }
+  if (this->position == cover::COVER_OPEN && this->current_operation == cover::COVER_OPERATION_OPENING) {
+    this->set_operation(cover::COVER_OPERATION_IDLE);
+  }
+
+  this->publish();
+  this->control_check();
+}
+
+
+void SlidingGateComponent::publish(bool force)
+{
+  if (force ||
+      (this->reported_position != this->position) || 
+      (this->reported_operation != this->current_operation)) {
+    this->reported_position = this->position;
+    this->reported_operation = this->current_operation;
+    this->publish_state();
+    ESP_LOGD(TAG,"Expected Operation: %s",cover::cover_operation_to_str(this->operation_next));
+    /*
+    ESP_LOGD(TAG,"detected_dir_bits: %x",this->detected_dir_bits);
+    ESP_LOGD(TAG,"detected_pos_bits: %x",this->detected_pos_bits);
+    ESP_LOGD(TAG,"detected_motion: %x",this->detected_motion);
+    ESP_LOGD(TAG,"detected_operation: %s",cover::cover_operation_to_str(this->detected_operation));
+    */
   }
 }
+
 
 void IRAM_ATTR SlidingGateComponent::handle_interrupt(SlidingGateComponent *_this) {
   int new_dir_state = 0;
 
-  _this->count++;
+  new_dir_state |= (_this->pin_dir_0_->digital_read()) ? 1 : 0;
+  new_dir_state |= (_this->pin_dir_1_->digital_read()) ? 2 : 0;
 
-  if (_this->pin_dir_0_->digital_read()) {
-    new_dir_state |= 1;
-  }
-  if (_this->pin_dir_1_->digital_read()) {
-    new_dir_state |= 2;
-  }
-  if (new_dir_state == _this->dir_state) {
+  if (new_dir_state == _this->detected_dir_bits) {
     return;
   }
 
-  _this->dir_state = new_dir_state;
+  _this->detected_motion = true;
 
-  if (new_dir_state != 3) {
+  if (_this->detected_dir_bits != -1) {
+    // we have at least one reported detected_dir_bits. This allows us to calculate the
+    // direction
+    static const int state_to_index[] = {0, 1, 3, 2};
+    int old_index = state_to_index[_this->detected_dir_bits&3];
+    int new_index = state_to_index[new_dir_state];
+    switch ((old_index - new_index) & 3) {
+    case 1:
+      _this->detected_operation = cover::COVER_OPERATION_OPENING;
+      break;
+    case 3:
+      _this->detected_operation = cover::COVER_OPERATION_CLOSING;
+      break;
+    default:
+      _this->detected_operation = cover::COVER_OPERATION_IDLE;
+      break;
+    }
+  }
+
+  _this->detected_dir_bits = new_dir_state;
+
+  if (new_dir_state != 0) {
    return;
   }
   int new_pos = 0;
-  if (_this->pin_pos_0_->digital_read()) {
-    new_pos |= 1;
+  new_pos |= (_this->pin_pos_0_->digital_read()) ? 1 : 0;
+  new_pos |= (_this->pin_pos_1_->digital_read()) ? 2 : 0;
+  new_pos |= (_this->pin_pos_2_->digital_read()) ? 4 : 0;
+
+  _this->detected_pos_bits = new_pos;
+}
+
+cover::CoverTraits SlidingGateComponent::get_traits()
+{
+  auto traits = cover::CoverTraits();
+  traits.set_supports_stop(true);
+  traits.set_supports_position(true);
+  traits.set_supports_toggle(true);
+  return traits;
+}
+
+void SlidingGateComponent::control(const cover::CoverCall &call)
+{
+  this->publish(true);
+
+  if (call.get_stop()) {
+    ESP_LOGD(TAG,"control: stop");
+    if (this->current_operation != cover::COVER_OPERATION_IDLE) {
+      this->relay_click();
+    }
+    this->control_tries_remaining = 0;
+    return;
+  } else if (call.get_toggle().has_value()) {
+    ESP_LOGD(TAG,"control: toggle");
+  } else if (call.get_position().has_value()) {
+    ESP_LOGD(TAG,"control: position");
+    // go to position action
+    this->control_target_position = *call.get_position();
+    ESP_LOGD(TAG,"control: control_target_position: %.0f%%",this->control_target_position*100.0f);
+    if (this->control_target_position > cover::COVER_OPEN) {
+      this->control_target_position = cover::COVER_OPEN;
+      ESP_LOGD(TAG,"control: control_target_position: %.0f%%",this->control_target_position*100.0f);
+    
+    }
+    if (this->control_target_position < cover::COVER_CLOSED) {
+      this->control_target_position = cover::COVER_CLOSED;
+      ESP_LOGD(TAG,"control: control_target_position: %.0f%%",this->control_target_position*100.0f);
+    }
+    this->control_tries_remaining = 5;
+    this->control_millis = this->now;
+    this->control_check(true);
   }
-  if (_this->pin_pos_1_->digital_read()) {
-    new_pos |= 2;
+}
+
+void SlidingGateComponent::control_check(bool force) {
+  if (!this->control_tries_remaining) {
+    return;
   }
-  if (_this->pin_pos_2_->digital_read()) {
-    new_pos |= 4;
+
+  // cover::COVER_CLOSED = 0.0
+  // cover::COVER_OPEN   = 1.0
+  
+  if ( !force && (this->now - this->control_millis) < 1000 ) {
+    return;
   }
-  _this->pos = new_pos;
+
+  ESP_LOGD(TAG,"control_check:");
+
+  this->control_millis = this->now;  
+
+  ESP_LOGD(TAG,"current_position: %.0f%%",this->position * 100.0f);
+  ESP_LOGD(TAG,"target_position: %.0f%%",this->control_target_position * 100.0f);
+  ESP_LOGD(TAG,"current_operation: %s",cover::cover_operation_to_str(this->current_operation));
+
+  cover::CoverOperation needed_operation = cover::COVER_OPERATION_IDLE;
+  
+  float diff = this->control_target_position - this->position;
+
+  if (diff < 0) {
+    if ((this->control_target_position != cover::COVER_CLOSED) && (diff > -0.1)) {
+      needed_operation = cover::COVER_OPERATION_IDLE;
+    } else {
+      needed_operation = cover::COVER_OPERATION_CLOSING;
+    }
+  } else if (diff > 0) {
+    if ((this->control_target_position != cover::COVER_OPEN) && (diff < 0.1)) {
+      needed_operation = cover::COVER_OPERATION_IDLE;
+    } else {
+      needed_operation = cover::COVER_OPERATION_OPENING;
+    }
+  }
+
+  ESP_LOGD(TAG,"target_operation: %s",cover::cover_operation_to_str(needed_operation));
+
+  if (needed_operation == this->current_operation) {
+    if (needed_operation == cover::COVER_OPERATION_IDLE) {
+      this->control_tries_remaining=0;
+    }
+    if (this->relay_state >= 2)
+    {
+      ESP_LOGD(TAG,"relay is busy but we are in correct operation... prevent further clicks");
+      this->relay_state &= 1;
+    }
+
+    return;
+  }
+
+  if (this->relay_state > 0) {
+    ESP_LOGD(TAG,"relay is busy...");
+    // there are still relay clicks scheduled -> we have to wait
+    return;
+  }
+
+  this->control_tries_remaining--;
+
+  // the current operation is wrong
+
+  if (this->current_operation != cover::COVER_OPERATION_IDLE) {
+    // the cover is currently moving in the wrong direction -> we have to click twice 
+    ESP_LOGD(TAG,"clicks: 2");
+    this->relay_click(2);
+    return;
+  }
+
+  // the cover is not moving
+  if (this->operation_next == needed_operation) {
+    ESP_LOGD(TAG,"clicks: 1");
+    this->relay_click(1);
+  } else {
+    ESP_LOGD(TAG,"clicks: 3");
+    this->relay_click(3);
+  }
+}
+
+void SlidingGateComponent::relay_click(int clicks) {
+  if (this->relay_state > 0) {
+    return;
+  }
+  this->relay_state = clicks*2;
+  this->relay_handle_loop(true);
+}
+
+void SlidingGateComponent::relay_handle_loop(bool force) {
+  if (!this->relay_state) {
+    return;
+  }
+
+  bool out = !(this->relay_state & 1);
+  if ( !force && (this->now - this->relay_millis) < (out ? 2000 : 250) ) {
+    return;
+  }
+  this->relay_state--;
+  this->relay_millis = this->now;
+  ESP_LOGD(TAG,"relay: %x (%i)",out, this->now);
+  this->pin_relay_->digital_write(out);
+  if (!out) {
+    this->set_operation(this->operation_next);
+  }
+}
+
+
+void SlidingGateComponent::set_operation(cover::CoverOperation operation)
+{
+  if (operation == this->current_operation) {
+    return;
+  }
+
+  if (operation == cover::COVER_OPERATION_IDLE) {
+    if (this->current_operation == cover::COVER_OPERATION_OPENING) {
+      this->operation_next = cover::COVER_OPERATION_CLOSING;
+    } else if (this->current_operation == cover::COVER_OPERATION_CLOSING) {
+      this->operation_next = cover::COVER_OPERATION_OPENING;
+    } 
+  } else {
+    this->operation_next = cover::COVER_OPERATION_IDLE;
+  }
+
+  this->current_operation = operation;
 }
 
 }
