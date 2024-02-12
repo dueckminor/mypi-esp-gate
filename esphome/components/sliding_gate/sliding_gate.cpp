@@ -78,6 +78,7 @@ void SlidingGateComponent::loop() {
   if (this->detected_operation != cover::COVER_OPERATION_IDLE) {
     this->set_operation(this->detected_operation);
     this->detected_operation = cover::COVER_OPERATION_IDLE;
+    this->control_force_check = true;
   }
 
   if (this->detected_motion) {
@@ -110,13 +111,15 @@ void SlidingGateComponent::publish(bool force)
     this->reported_position = this->position;
     this->reported_operation = this->current_operation;
     this->publish_state();
-    ESP_LOGD(TAG,"Expected Operation: %s",cover::cover_operation_to_str(this->operation_next));
-    /*
-    ESP_LOGD(TAG,"detected_dir_bits: %x",this->detected_dir_bits);
-    ESP_LOGD(TAG,"detected_pos_bits: %x",this->detected_pos_bits);
-    ESP_LOGD(TAG,"detected_motion: %x",this->detected_motion);
-    ESP_LOGD(TAG,"detected_operation: %s",cover::cover_operation_to_str(this->detected_operation));
-    */
+
+    if (this->position == cover::COVER_CLOSED) {
+      this->set_icon("mdi:gate");
+    } else if (this->position == cover::COVER_OPEN) {
+      this->set_icon("mdi:gate-open");
+    } else {
+      this->set_icon("mdi:gate-alert");
+    }
+    //ESP_LOGD(TAG,"Expected Operation: %s",cover::cover_operation_to_str(this->operation_next));
   }
 }
 
@@ -134,8 +137,8 @@ void IRAM_ATTR SlidingGateComponent::handle_interrupt(SlidingGateComponent *_thi
   _this->detected_motion = true;
 
   if (_this->detected_dir_bits != -1) {
-    // we have at least one reported detected_dir_bits. This allows us to calculate the
-    // direction
+    // This is now (at least) the second time where the dir bits have changed.
+    // This allows us to calculate the direction
     static const int state_to_index[] = {0, 1, 3, 2};
     int old_index = state_to_index[_this->detected_dir_bits&3];
     int new_index = state_to_index[new_dir_state];
@@ -157,6 +160,10 @@ void IRAM_ATTR SlidingGateComponent::handle_interrupt(SlidingGateComponent *_thi
   if (new_dir_state != 0) {
    return;
   }
+
+  // If new_dir_state is 0, all direction hal-sensors are active.
+  // In this case, we can assume that the position bits are correct.
+
   int new_pos = 0;
   new_pos |= (_this->pin_pos_0_->digital_read()) ? 1 : 0;
   new_pos |= (_this->pin_pos_1_->digital_read()) ? 2 : 0;
@@ -176,6 +183,7 @@ cover::CoverTraits SlidingGateComponent::get_traits()
 
 void SlidingGateComponent::control(const cover::CoverCall &call)
 {
+  // call publish now, to dump the current state in the logs
   this->publish(true);
 
   if (call.get_stop()) {
@@ -195,7 +203,6 @@ void SlidingGateComponent::control(const cover::CoverCall &call)
     if (this->control_target_position > cover::COVER_OPEN) {
       this->control_target_position = cover::COVER_OPEN;
       ESP_LOGD(TAG,"control: control_target_position: %.0f%%",this->control_target_position*100.0f);
-    
     }
     if (this->control_target_position < cover::COVER_CLOSED) {
       this->control_target_position = cover::COVER_CLOSED;
@@ -203,11 +210,12 @@ void SlidingGateComponent::control(const cover::CoverCall &call)
     }
     this->control_tries_remaining = 5;
     this->control_millis = this->now;
-    this->control_check(true);
+    this->control_force_check = true;
+    this->control_check();
   }
 }
 
-void SlidingGateComponent::control_check(bool force) {
+void SlidingGateComponent::control_check() {
   if (!this->control_tries_remaining) {
     return;
   }
@@ -215,13 +223,14 @@ void SlidingGateComponent::control_check(bool force) {
   // cover::COVER_CLOSED = 0.0
   // cover::COVER_OPEN   = 1.0
   
-  if ( !force && (this->now - this->control_millis) < 1000 ) {
+  if ( !this->control_force_check && (this->now - this->control_millis) < 2000 ) {
     return;
   }
 
   ESP_LOGD(TAG,"control_check:");
 
-  this->control_millis = this->now;  
+  this->control_millis = this->now;
+  this->control_force_check = false;
 
   ESP_LOGD(TAG,"current_position: %.0f%%",this->position * 100.0f);
   ESP_LOGD(TAG,"target_position: %.0f%%",this->control_target_position * 100.0f);
@@ -269,22 +278,7 @@ void SlidingGateComponent::control_check(bool force) {
   this->control_tries_remaining--;
 
   // the current operation is wrong
-
-  if (this->current_operation != cover::COVER_OPERATION_IDLE) {
-    // the cover is currently moving in the wrong direction -> we have to click twice 
-    ESP_LOGD(TAG,"clicks: 2");
-    this->relay_click(2);
-    return;
-  }
-
-  // the cover is not moving
-  if (this->operation_next == needed_operation) {
-    ESP_LOGD(TAG,"clicks: 1");
-    this->relay_click(1);
-  } else {
-    ESP_LOGD(TAG,"clicks: 3");
-    this->relay_click(3);
-  }
+  this->relay_click(1);
 }
 
 void SlidingGateComponent::relay_click(int clicks) {
@@ -312,7 +306,6 @@ void SlidingGateComponent::relay_handle_loop(bool force) {
     this->set_operation(this->operation_next);
   }
 }
-
 
 void SlidingGateComponent::set_operation(cover::CoverOperation operation)
 {

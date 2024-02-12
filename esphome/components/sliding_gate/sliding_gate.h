@@ -62,8 +62,9 @@ protected: // control
   int control_tries_remaining;
   unsigned int control_millis;
   float control_target_position;
+  bool control_force_check;
 
-  virtual void control_check(bool force=false);
+  virtual void control_check();
 
 protected:   // the relay
   int relay_state; // the state of the relay
