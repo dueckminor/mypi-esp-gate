@@ -187,16 +187,14 @@ void SlidingGateComponent::control(const cover::CoverCall &call)
   this->publish(true);
 
   if (call.get_stop()) {
-    ESP_LOGD(TAG,"control: stop");
     if (this->current_operation != cover::COVER_OPERATION_IDLE) {
       this->relay_click();
     }
     this->control_tries_remaining = 0;
     return;
   } else if (call.get_toggle().has_value()) {
-    ESP_LOGD(TAG,"control: toggle");
+    this->relay_click();
   } else if (call.get_position().has_value()) {
-    ESP_LOGD(TAG,"control: position");
     // go to position action
     this->control_target_position = *call.get_position();
     ESP_LOGD(TAG,"control: control_target_position: %.0f%%",this->control_target_position*100.0f);
@@ -208,6 +206,9 @@ void SlidingGateComponent::control(const cover::CoverCall &call)
       this->control_target_position = cover::COVER_CLOSED;
       ESP_LOGD(TAG,"control: control_target_position: %.0f%%",this->control_target_position*100.0f);
     }
+    // We need at most 3 clicks to bring the door in the correct operation.
+    // But if our assumption about the current state is wrong, we need
+    // some more clicks. 
     this->control_tries_remaining = 5;
     this->control_millis = this->now;
     this->control_force_check = true;
@@ -260,51 +261,37 @@ void SlidingGateComponent::control_check() {
     if (needed_operation == cover::COVER_OPERATION_IDLE) {
       this->control_tries_remaining=0;
     }
-    if (this->relay_state >= 2)
-    {
-      ESP_LOGD(TAG,"relay is busy but we are in correct operation... prevent further clicks");
-      this->relay_state &= 1;
-    }
-
     return;
   }
 
-  if (this->relay_state > 0) {
-    ESP_LOGD(TAG,"relay is busy...");
-    // there are still relay clicks scheduled -> we have to wait
+  if (this->relay_state) {
+    ESP_LOGD(TAG,"relay is busy..."); // -> we have to wait
     return;
   }
 
+  // the current operation is wrong, use one of the remaining clicks
   this->control_tries_remaining--;
-
-  // the current operation is wrong
-  this->relay_click(1);
+  this->relay_click();
 }
 
-void SlidingGateComponent::relay_click(int clicks) {
-  if (this->relay_state > 0) {
+void SlidingGateComponent::relay_click() {
+  if (this->relay_state) {
     return;
   }
-  this->relay_state = clicks*2;
-  this->relay_handle_loop(true);
-}
-
-void SlidingGateComponent::relay_handle_loop(bool force) {
-  if (!this->relay_state) {
-    return;
-  }
-
-  bool out = !(this->relay_state & 1);
-  if ( !force && (this->now - this->relay_millis) < (out ? 2000 : 250) ) {
-    return;
-  }
-  this->relay_state--;
+  this->relay_state = true;
   this->relay_millis = this->now;
-  ESP_LOGD(TAG,"relay: %x (%i)",out, this->now);
-  this->pin_relay_->digital_write(out);
-  if (!out) {
-    this->set_operation(this->operation_next);
+  ESP_LOGD(TAG,"relay: ON");
+  this->pin_relay_->digital_write(true);
+}
+
+void SlidingGateComponent::relay_handle_loop() {
+  if (!this->relay_state || ((this->now - this->relay_millis) < 250)) {
+    return;
   }
+  this->relay_state = false;
+  ESP_LOGD(TAG,"relay: OFF");
+  this->pin_relay_->digital_write(false);
+  this->set_operation(this->operation_next);
 }
 
 void SlidingGateComponent::set_operation(cover::CoverOperation operation)

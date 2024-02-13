@@ -9,7 +9,8 @@
 namespace esphome {
 namespace sliding_gate {
 
-/// This class implements support for the Tx20 Wind sensor.
+// This class implements support for a sliding gate with a 5 bit hal-sensor
+// position and direction detection
 class SlidingGateComponent : public cover::Cover, public Component {
  public:
 
@@ -19,8 +20,7 @@ class SlidingGateComponent : public cover::Cover, public Component {
   void dump_config() override;
   //float get_setup_priority() const override;
   void loop() override;
-  void relay_handle_loop(bool force=false);
-
+  
   virtual cover::CoverTraits get_traits();
   virtual void control(const cover::CoverCall &call);
   virtual void publish(bool force=false);
@@ -67,9 +67,11 @@ protected: // control
   virtual void control_check();
 
 protected:   // the relay
-  int relay_state; // the state of the relay
+  bool relay_state; // the state of the relay
   unsigned int relay_millis; // the time where the relay has been activated
-  virtual void relay_click(int clicks=1);
+  virtual void relay_click();
+  virtual void relay_handle_loop();
+
 };
 
 }  // namespace tx20
