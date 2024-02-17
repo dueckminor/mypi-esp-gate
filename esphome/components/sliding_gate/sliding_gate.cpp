@@ -84,7 +84,8 @@ void SlidingGateComponent::loop() {
   if (this->detected_motion) {
     this->position = (1.0/7) * (this->detected_pos_bits);
     this->detected_motion_millis = this->now;
-  } else {
+    this->detected_motion = false;
+  } else if (this->current_operation != cover::COVER_OPERATION_IDLE) {
     if ((this->now - this->detected_motion_millis) > 15000) {
       ESP_LOGD(TAG,"No motion detected since 15 seconds. Assuming idle operation...");
       this->set_operation(cover::COVER_OPERATION_IDLE);
@@ -111,14 +112,6 @@ void SlidingGateComponent::publish(bool force)
     this->reported_position = this->position;
     this->reported_operation = this->current_operation;
     this->publish_state();
-
-    if (this->position == cover::COVER_CLOSED) {
-      this->set_icon("mdi:gate");
-    } else if (this->position == cover::COVER_OPEN) {
-      this->set_icon("mdi:gate-open");
-    } else {
-      this->set_icon("mdi:gate-alert");
-    }
     //ESP_LOGD(TAG,"Expected Operation: %s",cover::cover_operation_to_str(this->operation_next));
   }
 }
