@@ -86,8 +86,8 @@ void SlidingGateComponent::loop() {
     this->detected_motion_millis = this->now;
     this->detected_motion = false;
   } else if (this->current_operation != cover::COVER_OPERATION_IDLE) {
-    if ((this->now - this->detected_motion_millis) > 15000) {
-      ESP_LOGD(TAG,"No motion detected since 15 seconds. Assuming idle operation...");
+    if ((this->now - this->detected_motion_millis) > 10000) {
+      ESP_LOGD(TAG,"No motion detected since 10 seconds. Assuming idle operation...");
       this->set_operation(cover::COVER_OPERATION_IDLE);
     }
   }
@@ -202,7 +202,7 @@ void SlidingGateComponent::control(const cover::CoverCall &call)
     // We need at most 3 clicks to bring the door in the correct operation.
     // But if our assumption about the current state is wrong, we need
     // some more clicks. 
-    this->control_tries_remaining = 9;
+    this->control_tries_remaining = 10;
     this->control_millis = this->now;
     this->control_force_check = true;
     this->control_check();
