@@ -202,7 +202,7 @@ void SlidingGateComponent::control(const cover::CoverCall &call)
     // We need at most 3 clicks to bring the door in the correct operation.
     // But if our assumption about the current state is wrong, we need
     // some more clicks. 
-    this->control_tries_remaining = 5;
+    this->control_tries_remaining = 9;
     this->control_millis = this->now;
     this->control_force_check = true;
     this->control_check();
